@@ -1,0 +1,290 @@
+---
+title: "535 Project"
+author: "Group 19"
+date: "4/28/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(tidy.opts=list(width.cutoff=90),tidy=TRUE)  #Wrap up texts
+```
+
+```{r}
+#install.packages("readxl")
+library(tidyverse)
+library(lubridate)
+library(gridExtra)
+library(ggcorrplot)
+library(ggpubr)
+library(rpart)
+library(rpart.plot)
+library(readxl)
+```
+
+## Dataset Overview
+
+```{r}
+summarize_numeric = function(dataset) {
+  
+  dataset = select_if(dataset, is.numeric)
+  summary.table = data.frame(Attribute = names(dataset))
+  
+  summary.table = summary.table %>% 
+    mutate('Missing Values' = apply(dataset, 2, function (x) sum(is.na(x))),
+           'Unique Values' = apply(dataset, 2, function (x) length(unique(x))),
+           'Mean' = colMeans(dataset, na.rm = TRUE),
+           'Min' = apply(dataset, 2, function (x) min(x, na.rm = TRUE)),
+           'Max' = apply(dataset, 2, function (x) max(x, na.rm = TRUE)),
+           'SD' = apply(dataset, 2, function (x) sd(x, na.rm = TRUE))
+    )
+  summary.table
+}
+
+
+summarize_character = function(dataset) {
+  
+  dataset = select_if(dataset, is.character)
+  summary.table = data.frame(Attribute = names(dataset))
+  
+  summary.table = summary.table %>% 
+    mutate('Missing Values' = apply(dataset, 2, function (x) sum(is.na(x))),
+           'Unique Values' = apply(dataset, 2, function (x) length(unique(x))),
+    )
+  summary.table
+}
+```
+
+#Read in data
+```{r}
+nonvoters <- read_csv("nonvoters.csv", col_names = TRUE)
+nonvoters$RESPID <- as.character(nonvoters$RESPID)
+summary(nonvoters)
+```
+
+
+```{r}
+summarize_character(nonvoters)
+summarize_numeric(nonvoters)
+```
+```{r}
+#Process Data
+nonvoters = nonvoters %>% mutate(VOTING_INTENTION = as.factor(
+  case_when(
+    VOTING_INTENTION == "Yes" ~ 'Yes',
+    VOTING_INTENTION == "Unsure" ~ 'No',
+    VOTING_INTENTION == "No" ~ 'No')
+)
+)
+
+nonvoters = nonvoters %>% mutate(PERSONAL_REASONS = as.factor(
+  case_when(
+    PERSONAL_REASONS == "Personal Reasons" ~ 'Yes',
+    PERSONAL_REASONS == "No" ~ 'No')
+)
+)
+
+nonvoters = nonvoters %>% mutate(COVID_REASONS = as.factor(
+  case_when(
+    COVID_REASONS == "COVID Reasons" ~ 'Yes',
+    COVID_REASONS == "No" ~ 'No')
+)
+)
+
+nonvoters = nonvoters %>% mutate(FAMILY_REASONS = as.factor(
+  case_when(
+    FAMILY_REASONS == "Family Reasons" ~ 'Yes',
+    FAMILY_REASONS == "No" ~ 'No')
+)
+)
+
+nonvoters = nonvoters %>% mutate(EDUC = as.factor(
+  case_when(
+    EDUC == "Some college" ~ 'College',
+    EDUC == "College" ~ 'College',
+    EDUC == "High school or less" ~ 'High school or less')
+)
+)
+
+nonvoters = nonvoters %>% mutate(ATTITUDE = as.factor(
+  case_when(
+    ATTITUDE == "Who wins the election really matters" ~ 'Matter',
+    ATTITUDE == "Things will be pretty much the same" ~ 'NotMatter')
+)
+)
+```
+
+```{r}
+summarize_character(nonvoters)
+summarize_numeric(nonvoters)
+```
+
+
+----------------------EDA-----------------------------
+```{r}
+# Univariate Analysis of Numeric Attributes
+# Voting_Intention == Yes
+p1_y = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_histogram(aes(x = WEIGHT))
+p2_y = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_histogram(aes(x = NO_OF_CONFIDENT_WAYS))
+p3_y = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_histogram(aes(x = VOTING_TIMES))
+p4_y = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_histogram(aes(x = PPAGE))
+grid.arrange(p1_y, p2_y, p3_y, p4_y, nrow = 2, top = "Univariate Analysis of Numeric Attributes - Yes")
+```
+
+```{r}
+# Voting_Intention == No
+p1_n = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_histogram(aes(x = WEIGHT))
+p2_n = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_histogram(aes(x = NO_OF_CONFIDENT_WAYS))
+p3_n = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_histogram(aes(x = VOTING_TIMES))
+p4_n = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_histogram(aes(x = PPAGE))
+grid.arrange(p1_n, p2_n, p3_n, p4_n, nrow = 2, top = "Univariate Analysis of Numeric Attributes - No")
+```
+
+```{r}
+# Univariate Analysis of Factor Attributes
+# Output: Voting_Intention
+# Logical groups:
+# Subjective factors: ATTITUDE, TRUST_FOR_PRESIDENCY, DIFFICULTY_TO_VOTE, REASON_FOR_NOT_REGISTER, PREFERRED_METHOD_OF_VOTING, CANDIDATE
+# Objective factors: PERSONAL_REASON, COVID_REASON, FAMILY_REASON, REGISTERED
+# Personal information: PARTY, EDUC, RACE, GENDER, INCOME_CAT, VOTER_CATEGORY
+```
+
+```{r}
+# Subjective factors (yes):
+p1_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = ATTITUDE))
+p2_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = TRUST_FOR_PRESIDENCY))
+p3_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = DIFFICULTY_TO_VOTE))
+p4_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = REASON_FOR_NOT_REGISTER))
+p5_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = PREFERRED_METHOD_OF_VOTING))
+p6_sy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = CANDIDATE))
+grid.arrange(p1_sy, p2_sy, p3_sy, p4_sy, p5_sy, p6_sy, nrow = 2, top = "Subjective Facotrs - Yes")
+```
+
+```{r}
+# Subjective factors (no):
+p1_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = ATTITUDE))
+p2_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = TRUST_FOR_PRESIDENCY))
+p3_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = DIFFICULTY_TO_VOTE))
+p4_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = REASON_FOR_NOT_REGISTER))
+p5_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = PREFERRED_METHOD_OF_VOTING))
+p6_sn = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = CANDIDATE))
+grid.arrange(p1_sn, p2_sn, p3_sn, p4_sn, p5_sn, p6_sn, nrow = 2, top = "Subjective Facotrs - No")
+```
+
+```{r}
+# Objective factors (yes):
+p1_oy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = PERSONAL_REASONS))
+p2_oy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = COVID_REASONS))
+p3_oy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = FAMILY_REASONS))
+p4_oy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = REGISTERED))
+grid.arrange(p1_oy, p2_oy, p3_oy, p4_oy, nrow = 2, top = "Objective Facotrs - Yes")
+```
+
+```{r}
+# Objective factors (no):
+p1_on = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = PERSONAL_REASONS))
+p2_on = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = COVID_REASONS))
+p3_on = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = FAMILY_REASONS))
+p4_on = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = REGISTERED))
+grid.arrange(p1_on, p2_on, p3_on, p4_on, nrow = 2, top = "Objective Facotrs - No")
+```
+
+```{r}
+# Personal Information (yes):
+p1_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = PARTY))
+p2_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = EDUC))
+p3_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = RACE))
+p4_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = GENDER))
+p5_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = INCOME_CAT))
+p6_iy = ggplot(nonvoters %>% filter(VOTING_INTENTION == "Yes")) + geom_bar(aes(x = VOTER_CATEGORY))
+grid.arrange(p1_iy, p2_iy, p3_iy, p4_iy, p5_iy, p6_iy, nrow = 2, top = "Personal Information - Yes")
+```
+
+```{r}
+# Personal Information (no):
+p1_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = PARTY))
+p2_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = EDUC))
+p3_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = RACE))
+p4_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = GENDER))
+p5_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = INCOME_CAT))
+p6_in = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x = VOTER_CATEGORY))
+grid.arrange(p1_in, p2_in, p3_in, p4_in, p5_in, p6_in, nrow = 2, top = "Personal Information - No")
+```
+
+```{r}
+# Bivariate Analysis of Numeric and Numeric
+ggcorrplot(cor(nonvoters %>% select(where(is.numeric))), lab = TRUE)
+```
+
+```{r}
+ggplot(nonvoters) + geom_point(aes(PPAGE, VOTING_TIMES), position = 'jitter')
+ggplot(nonvoters) + geom_point(aes(NO_OF_CONFIDENT_WAYS, VOTING_TIMES), position = 'jitter')
+```
+
+```{r}
+# Bivariate Analysis of Numeric and Categories
+# Subjective factors: ATTITUDE, TRUST_FOR_PRESIDENCY, DIFFICULTY_TO_VOTE, REASON_FOR_NOT_REGISTER, PREFERRED_METHOD_OF_VOTING, CANDIDATE
+# Objective factors: PERSONAL_REASON, COVID_REASON, FAMILY_REASON, REGISTERED
+# Personal information: PARTY, EDUC, RACE, GENDER, INCOME_CAT, VOTER_CATEGORY
+g1 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= EDUC, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g2 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= ATTITUDE, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g3 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= TRUST_FOR_PRESIDENCY, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g4 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= DIFFICULTY_TO_VOTE, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g5 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= PREFERRED_METHOD_OF_VOTING, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g6 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= CANDIDATE, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g7 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= PARTY, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g8 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= INCOME_CAT, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+g9 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_boxplot(aes(x= VOTER_CATEGORY, y= VOTING_TIMES)) + theme(axis.title.y = element_blank())
+
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, g8, g9, nrow=3)
+```
+
+```{r}
+# Bivariate Analysis of Categories and Categories
+# Subjective factors: ATTITUDE, TRUST_FOR_PRESIDENCY, DIFFICULTY_TO_VOTE, REASON_FOR_NOT_REGISTER, PREFERRED_METHOD_OF_VOTING, CANDIDATE
+# Objective factors: PERSONAL_REASON, COVID_REASON, FAMILY_REASON, REGISTERED
+# Personal information: PARTY, EDUC, RACE, GENDER, INCOME_CAT, VOTER_CATEGORY
+g1 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= TRUST_FOR_PRESIDENCY, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g2 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= CANDIDATE, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g3 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= REGISTERED, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g4 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= PARTY, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g5 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= EDUC, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g6 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= RACE, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g7 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= GENDER, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g8 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= INCOME_CAT, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+g9 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= VOTER_CATEGORY, fill = ATTITUDE), position = "fill") + labs(y = "Percent")
+
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, g8, g9, nrow=3, top = "ATTITUDE by Category")
+```
+
+```{r}
+g1 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= TRUST_FOR_PRESIDENCY, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g2 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= ATTITUDE, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g3 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= REGISTERED, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g4 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= PARTY, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g5 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= EDUC, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g6 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= RACE, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g7 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= GENDER, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g8 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= INCOME_CAT, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+g9 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= VOTER_CATEGORY, fill = CANDIDATE), position = "fill") + labs(y = "Percent")
+
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, g8, g9, nrow=3, top = "ATTITUDE by CANDIDATE")
+```
+
+```{r}
+g1 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= TRUST_FOR_PRESIDENCY, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g2 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= ATTITUDE, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g3 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= REGISTERED, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g4 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= PARTY, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g5 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= EDUC, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g6 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= RACE, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g7 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= GENDER, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g8 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= CANDIDATE, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+g9 = ggplot(nonvoters %>% filter(VOTING_INTENTION == "No")) + geom_bar(aes(x= VOTER_CATEGORY, fill = INCOME_CAT), position = "fill") + labs(y = "Percent")
+
+grid.arrange(g1, g2, g3, g4, g5, g6, g7, g8, g9, nrow=3, top = "ATTITUDE by INCOME_CAT")
+```
+
+```
+----------------------EDA-----------------------------
+
